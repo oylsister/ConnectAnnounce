@@ -18,4 +18,10 @@
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Reference Include="VipCoreApi">
+      <HintPath>VipCoreApi\VipCoreApi.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
 </Project>

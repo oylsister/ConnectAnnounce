@@ -6,12 +6,14 @@ using ConnectAnnounce.Entities;
 using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Core.Attributes.Registration;
+using CounterStrikeSharp.API.Core.Capabilities;
 using CounterStrikeSharp.API.Modules.Admin;
 using CounterStrikeSharp.API.Modules.Commands;
 using CounterStrikeSharp.API.Modules.Utils;
 using MaxMind.GeoIP2;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
+using VipCoreApi;
 
 namespace ConnectAnnounce;
 
@@ -26,6 +28,9 @@ public class ConnectAnnounce(ILogger<ConnectAnnounce> logger) : BasePlugin
 
     public Dictionary<string, ConnectMessage>? ConnectMessageList = [];
     public static string ConfigDir = Path.Combine(Application.RootDirectory, "configs/ConnectAnnounce/");
+
+    IVipCoreApi? _vipCoreApi;
+    private PluginCapability<IVipCoreApi> PluginCapability { get; } = new("vipcore:core");
 
     public override void Load(bool hotReload)
     {
@@ -61,6 +66,14 @@ public class ConnectAnnounce(ILogger<ConnectAnnounce> logger) : BasePlugin
     {
         DeregisterEventHandler<EventPlayerConnectFull>(OnPlayerConnectFull);
         _database?.DatabaseOnUnload();
+    }
+
+    public override void OnAllPluginsLoaded(bool hotReload)
+    {
+        _vipCoreApi = PluginCapability.Get();
+
+        if (_vipCoreApi == null)
+            return;
     }
 
     [CommandHelper(1, "css_joinmsg <message>", CommandUsage.CLIENT_ONLY)]
@@ -206,13 +219,8 @@ public class ConnectAnnounce(ILogger<ConnectAnnounce> logger) : BasePlugin
             return null;
         }
 
-        var adminFlag = AdminManager.GetPlayerAdminData(client)?.GetAllFlags();
+        var steamid = client.AuthorizedSteamID?.SteamId64;
 
-        if(adminFlag == null || adminFlag.Count <= 0)
-            return "default";
-
-        // if it's root then we straight up finding the one that has a root access.
-        if(adminFlag.Contains("@css/root"))
         // we search for user first
         if(steamid.HasValue)
         {
@@ -223,12 +231,36 @@ public class ConnectAnnounce(ILogger<ConnectAnnounce> logger) : BasePlugin
             }
         }
 
-        // we don't need else, in case root connect message is not setting up so they can get it from other admin setup instead.
-        foreach(var flag in adminFlag)
+        var adminFlag = AdminManager.GetPlayerAdminData(client)?.GetAllFlags();
+
+        if (adminFlag != null && adminFlag.Count > 0)
         {
-            foreach(var data in ConnectMessageList)
+            // if it's root then we straight up finding the one that has a root access.
+            if (adminFlag.Contains("@css/root"))
             {
-                if(data.Value.AdminFlag.Contains(flag))
+                foreach (var data in ConnectMessageList)
+                {
+                    if (data.Value.AdminFlag.Contains("@css/root"))
+                        return data.Key;
+                }
+            }
+
+            // we don't need else, in case root connect message is not setting up so they can get it from other admin setup instead.
+            foreach (var flag in adminFlag)
+            {
+                foreach (var data in ConnectMessageList)
+                {
+                    if (data.Value.AdminFlag.Contains(flag))
+                        return data.Key;
+                }
+            }
+        }
+
+        if (_vipCoreApi?.IsClientVip(client) ?? false)
+        {
+            foreach (var data in ConnectMessageList)
+            {
+                if (data.Value.VIPOnly)
                     return data.Key;
             }
         }

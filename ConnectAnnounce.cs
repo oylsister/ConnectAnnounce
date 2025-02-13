@@ -213,10 +213,12 @@ public class ConnectAnnounce(ILogger<ConnectAnnounce> logger) : BasePlugin
 
         // if it's root then we straight up finding the one that has a root access.
         if(adminFlag.Contains("@css/root"))
+        // we search for user first
+        if(steamid.HasValue)
         {
             foreach(var data in ConnectMessageList)
             {
-                if(data.Value.AdminFlag.Contains("@css/root"))
+                if(data.Value.Users.Contains(steamid.Value.ToString()))
                     return data.Key;
             }
         }
